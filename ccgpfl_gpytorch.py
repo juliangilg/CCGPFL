@@ -1,4 +1,4 @@
-"""Reusable GPyTorch components for CCGPMA multi-annotator classification.
+"""Reusable GPyTorch components for CCGPFL.
 
 The module contains:
 1. ``MultiClassMA``: custom likelihood for multi-class classification from
