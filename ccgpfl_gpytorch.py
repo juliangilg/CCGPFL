@@ -125,27 +125,27 @@ class MultiClassMA(Likelihood):
       self, function_dist: MultitaskMultivariateNormal, num_likelihood_samples)-> Tensor:
       sample_shape = torch.Size([num_likelihood_samples] +
         [1] * (self.max_plate_nesting - len(function_dist.batch_shape) - 1))
-
+   
       if self.training:
           num_event_dims = len(function_dist.event_shape)
-
+   
           function_dist = base_distributions.Normal(function_dist.mean, function_dist.variance.sqrt())
           function_dist = base_distributions.Independent(function_dist, num_event_dims - 1)
       function_samples = function_dist.rsample(sample_shape)
       print(function_samples.shape)
       return torch.nn.functional.softmax(function_samples, dim=2)
 
-  def _draw_likelihood_samples_lam(
-    self, function_dist: MultitaskMultivariateNormal, num_likelihood_samples)-> Tensor:
-    sample_shape = torch.Size([num_likelihood_samples] +
-      [1] * (self.max_plate_nesting - len(function_dist.batch_shape) - 1))
+   def _draw_likelihood_samples_lam(
+   self, function_dist: MultitaskMultivariateNormal, num_likelihood_samples)-> Tensor:
+   sample_shape = torch.Size([num_likelihood_samples] +
+   [1] * (self.max_plate_nesting - len(function_dist.batch_shape) - 1))
 
-    if self.training:
-        num_event_dims = len(function_dist.event_shape)
-        function_dist = base_distributions.Normal(function_dist.mean, function_dist.variance.sqrt())
-        function_dist = base_distributions.Independent(function_dist, num_event_dims - 1)
-    function_samples = function_dist.rsample(sample_shape)
-    return torch.nn.functional.sigmoid(function_samples,)
+   if self.training:
+      num_event_dims = len(function_dist.event_shape)
+      function_dist = base_distributions.Normal(function_dist.mean, function_dist.variance.sqrt())
+      function_dist = base_distributions.Independent(function_dist, num_event_dims - 1)
+      function_samples = function_dist.rsample(sample_shape)
+   return torch.nn.functional.sigmoid(function_samples,)
 
 
 class MultitaskGPModel(gpytorch.models.ApproximateGP):
