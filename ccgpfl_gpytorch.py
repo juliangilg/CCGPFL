@@ -73,157 +73,79 @@ class MultiClassMA(Likelihood):
         """Not used directly because inference is implemented in ``marginal``."""
         return None
 
-    def expected_log_prob(
-        self,
-        target: Tensor,
-        input: MultitaskMultivariateNormal,
-        *args,
-        **kwargs,
-    ) -> Tensor:
-        """Compute the focal-loss-based expected log probability.
+    def expected_log_prob(self, target: Tensor, input: MultitaskMultivariateNormal) -> Tensor:
+       print('E_log_prob')
+       # One-hot representation for multi-labelers' annotations.
+       Y = torch.transpose(torch.nn.functional.one_hot(target.long()), 1, 2)
+       # Distribution related to the Ground truth.
+       Dk = input[:,:self.K]
+       # Distribution related to the annotators' reliabilities.
+       Dr = input[:,self.K:]
+   
+       # E_{q(f_{1,n})...q(f_{K,n})}[log zeta]
+       zeta_samples = self._draw_likelihood_samples_zeta(Dk, 200)
+   
+       # numerical stability
+       eps = 1e-6
+       zeta_samples = torch.clip(zeta_samples, min=eps, max=1-eps)
+       alpha = self.focal_gamma
+       E_zeta_log = (((1-zeta_samples)**alpha)*torch.log(zeta_samples)).mean(dim=0)
+       E_zeta_log = E_zeta_log.unsqueeze(-1).repeat(1, 1, self.R)
+   
+       # Focal Loss term
+       fl = torch.sum(Y*E_zeta_log, dim=1)
+   
+       # E_{q(f_{K+1,n})...q(f_{J,n})}[z_n^r]
+       E_z = self.quadrature(torch.nn.functional.sigmoid, Dr)
+   
+       return torch.sum((E_z*fl - (1-E_z)*torch.log(torch.tensor(self.K))), dim=1)
 
-        ``target`` has shape ``[batch_size, R]``. Negative target values are
-        interpreted as missing annotations and do not contribute to the ELBO.
-        """
-        if target.ndim != 2:
-            raise ValueError(
-                "target must have shape [batch_size, num_annotators]."
-            )
-        if target.size(-1) != self.R:
-            raise ValueError(
-                f"Expected {self.R} annotators, received {target.size(-1)}."
-            )
 
-        valid_mask = target.ge(0)
-        safe_target = target.long().clamp(min=0, max=self.K - 1)
+    def marginal(self, function_dist: MultitaskMultivariateNormal):
+       # Distribution related to the Ground truth.
+       Dk = function_dist[:,:self.K]
+       # Distribution related to the annotators' reliabilities.
+       Dr = function_dist[:,self.K:]
+   
+       # Ground truth predictions
+       zeta_samples = self._draw_likelihood_samples_zeta(Dk, 200)
+       E_zeta = zeta_samples.mean(dim=0)
+       E_zeta_2 = torch.square(zeta_samples).mean(dim=0)
+   
+       # Reliabilities predictions
+       E_z = self.quadrature(torch.nn.functional.sigmoid, Dr)
+   
+       Sig_2 = lambda x: torch.square(torch.nn.functional.sigmoid(x))
+       E_z2 = self.quadrature(Sig_2, Dr)
+   
+       return torch.cat((E_zeta, E_z), 1), torch.cat((E_zeta_2-E_zeta**2, E_z2-E_z**2), 1)
 
-        # [N, R, K] -> [N, K, R]
-        y_one_hot = torch.nn.functional.one_hot(
-            safe_target, num_classes=self.K
-        ).transpose(1, 2)
-
-        # Latent distributions for the ground truth and annotator reliability.
-        d_classes = input[:, : self.K]
-        d_reliability = input[:, self.K :]
-
-        # E_q(f)[(1 - softmax(f))^gamma log softmax(f)]
-        zeta_samples = self._draw_likelihood_samples_zeta(
-            d_classes, self.num_likelihood_samples
-        )
-        eps = torch.finfo(zeta_samples.dtype).eps
-        zeta_samples = torch.clamp(zeta_samples, min=eps, max=1.0 - eps)
-
-        expected_focal_log = (
-            ((1.0 - zeta_samples) ** self.focal_gamma)
-            * torch.log(zeta_samples)
-        ).mean(dim=0)
-        expected_focal_log = expected_focal_log.unsqueeze(-1).expand(
-            -1, -1, self.R
-        )
-
-        focal_term = torch.sum(y_one_hot * expected_focal_log, dim=1)
-
-        # E_q(g_r)[sigmoid(g_r)]
-        expected_reliability = self.quadrature(
-            torch.nn.functional.sigmoid, d_reliability
-        )
-
-        log_num_classes = input.mean.new_tensor(float(self.K)).log()
-        log_prob = (
-            expected_reliability * focal_term
-            - (1.0 - expected_reliability) * log_num_classes
-        )
-
-        return torch.sum(log_prob * valid_mask.to(log_prob.dtype), dim=1)
-
-    def marginal(
-        self,
-        function_dist: MultitaskMultivariateNormal,
-        *args,
-        **kwargs,
-    ) -> Tuple[Tensor, Tensor]:
-        """Return predictive means and variances.
-
-        The first ``K`` columns correspond to ground-truth class probabilities.
-        The following ``R`` columns correspond to annotator reliabilities.
-        """
-        d_classes = function_dist[:, : self.K]
-        d_reliability = function_dist[:, self.K :]
-
-        zeta_samples = self._draw_likelihood_samples_zeta(
-            d_classes, self.num_likelihood_samples
-        )
-        expected_zeta = zeta_samples.mean(dim=0)
-        expected_zeta_squared = torch.square(zeta_samples).mean(dim=0)
-
-        expected_reliability = self.quadrature(
-            torch.nn.functional.sigmoid, d_reliability
-        )
-        expected_reliability_squared = self.quadrature(
-            lambda x: torch.square(torch.nn.functional.sigmoid(x)),
-            d_reliability,
-        )
-
-        predictive_mean = torch.cat(
-            (expected_zeta, expected_reliability), dim=1
-        )
-        predictive_variance = torch.cat(
-            (
-                expected_zeta_squared - expected_zeta.square(),
-                expected_reliability_squared - expected_reliability.square(),
-            ),
-            dim=1,
-        )
-        return predictive_mean, predictive_variance
 
     def _draw_likelihood_samples_zeta(
-        self,
-        function_dist: MultitaskMultivariateNormal,
-        num_likelihood_samples: int,
-    ) -> Tensor:
-        """Draw latent samples and apply softmax over the class dimension."""
-        function_samples = self._draw_likelihood_samples(
-            function_dist, num_likelihood_samples
-        )
-        return torch.nn.functional.softmax(function_samples, dim=-1)
+      self, function_dist: MultitaskMultivariateNormal, num_likelihood_samples)-> Tensor:
+      sample_shape = torch.Size([num_likelihood_samples] +
+        [1] * (self.max_plate_nesting - len(function_dist.batch_shape) - 1))
 
-    def _draw_likelihood_samples_lam(
-        self,
-        function_dist: MultitaskMultivariateNormal,
-        num_likelihood_samples: int,
-    ) -> Tensor:
-        """Draw latent samples and apply sigmoid to obtain reliabilities."""
-        function_samples = self._draw_likelihood_samples(
-            function_dist, num_likelihood_samples
-        )
-        return torch.nn.functional.sigmoid(function_samples)
+      if self.training:
+          num_event_dims = len(function_dist.event_shape)
 
-    def _draw_likelihood_samples(
-        self,
-        function_dist: MultitaskMultivariateNormal,
-        num_likelihood_samples: int,
-    ) -> Tensor:
-        """Draw reparameterized samples from a multitask latent distribution."""
-        sample_shape = torch.Size(
-            [num_likelihood_samples]
-            + [1]
-            * (
-                self.max_plate_nesting
-                - len(function_dist.batch_shape)
-                - 1
-            )
-        )
+          function_dist = base_distributions.Normal(function_dist.mean, function_dist.variance.sqrt())
+          function_dist = base_distributions.Independent(function_dist, num_event_dims - 1)
+      function_samples = function_dist.rsample(sample_shape)
+      print(function_samples.shape)
+      return torch.nn.functional.softmax(function_samples, dim=2)
 
-        if self.training:
-            num_event_dims = len(function_dist.event_shape)
-            function_dist = base_distributions.Normal(
-                function_dist.mean, function_dist.variance.sqrt()
-            )
-            function_dist = base_distributions.Independent(
-                function_dist, num_event_dims - 1
-            )
+  def _draw_likelihood_samples_lam(
+    self, function_dist: MultitaskMultivariateNormal, num_likelihood_samples)-> Tensor:
+    sample_shape = torch.Size([num_likelihood_samples] +
+      [1] * (self.max_plate_nesting - len(function_dist.batch_shape) - 1))
 
-        return function_dist.rsample(sample_shape)
+    if self.training:
+        num_event_dims = len(function_dist.event_shape)
+        function_dist = base_distributions.Normal(function_dist.mean, function_dist.variance.sqrt())
+        function_dist = base_distributions.Independent(function_dist, num_event_dims - 1)
+    function_samples = function_dist.rsample(sample_shape)
+    return torch.nn.functional.sigmoid(function_samples,)
 
 
 class MultitaskGPModel(gpytorch.models.ApproximateGP):
@@ -252,51 +174,42 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         inducing_p: int,
         input_dim: int = 1,
         initial_lengthscale: float = 0.01,
-        inducing_points: Optional[Tensor] = None,
     ) -> None:
-        if num_latents < 1 or num_tasks < 1 or inducing_p < 1:
-            raise ValueError(
-                "num_latents, num_tasks, and inducing_p must be positive."
-            )
-
-        if inducing_points is None:
-            inducing_points = torch.rand(
+        
+       inducing_points = torch.rand(
                 num_latents, inducing_p, input_dim
             )
 
-        variational_distribution = (
-            gpytorch.variational.TrilNaturalVariationalDistribution(
-                inducing_points.size(-2),
-                batch_shape=torch.Size([num_latents]),
-            )
+        variational_distribution = gpytorch.variational.TrilNaturalVariationalDistribution(
+            inducing_points.size(-2), batch_shape=torch.Size([num_latents])
         )
 
+        # We have to wrap the VariationalStrategy in a LMCVariationalStrategy
+        # so that the output will be a MultitaskMultivariateNormal rather than a batch output
         variational_strategy = gpytorch.variational.LMCVariationalStrategy(
             gpytorch.variational.VariationalStrategy(
-                self,
-                inducing_points,
-                variational_distribution,
-                learn_inducing_locations=True,
+                self, inducing_points, variational_distribution, learn_inducing_locations=True
             ),
             num_tasks=num_tasks,
             num_latents=num_latents,
-            latent_dim=-1,
+            latent_dim=-1
         )
-
+       
         super().__init__(variational_strategy)
 
-        batch_shape = torch.Size([num_latents])
-        self.mean_module = gpytorch.means.ConstantMean(batch_shape=batch_shape)
-        self.covar_module = gpytorch.kernels.RBFKernel(batch_shape=batch_shape)
-        self.covar_module.lengthscale = torch.full(
-            (num_latents, 1, 1), float(initial_lengthscale)
-        )
+        self.mean_module = gpytorch.means.ConstantMean(batch_shape=torch.Size([num_latents]))
+        # self.mean_module = gpytorch.means.ZeroMean(batch_shape=torch.Size([num_latents]))
+        self.covar_module = gpytorch.kernels.RBFKernel(batch_shape=torch.Size([num_latents]))
 
-    def forward(self, x: Tensor):
-        """Evaluate the latent GP prior."""
+        self.covar_module.lengthscale = torch.tensor([initial_lengthscale] * num_latents)
+
+    def forward(self, x):
+        # The forward function should be written as if we were dealing with each output
+        # dimension in batch
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
 
 
 def build_ccgpma(
