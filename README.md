@@ -41,34 +41,17 @@ The model also supports sparse annotation matrices. Missing labels can be repres
 
 ---
 
-## Main features
-
-- Multi-class classification with multiple annotators.
-- Instance-dependent annotator reliability estimation.
-- Modeling of dependencies among annotators.
-- Sparse variational Gaussian process inference.
-- Linear Model of Coregionalization strategy.
-- Focal-loss-based variational objective.
-- Support for missing annotations.
-- Synthetic and semi-synthetic demonstrations.
-- Performance evaluation against annotation aggregation baselines.
-
----
-
 ## General requirements
 
 The project requires:
 
 - Python 3.9 or later
-- Jupyter Notebook or JupyterLab
 - PyTorch
 - GPyTorch
 - NumPy
 - pandas
 - scikit-learn
 - Matplotlib
-- TensorFlow
-- tqdm
 - ucimlrepo
 
 The `ucimlrepo` package is only required for the semi-synthetic Iris demonstration. TensorFlow is currently used by some auxiliary functions included in `utils.py`.
