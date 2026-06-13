@@ -1,5 +1,4 @@
 import numpy as np
-import tensorflow as tf
 
 # One-of-K codification.
 def one_of_K(y, K):
@@ -139,26 +138,3 @@ def multiple_annotators(R, NrP, Xtrain, ytrain):
 
   return Lam_r, Ytrain, iAnn, Vref
 
-def run_adam(model, train_dataset, minibatch_size, iterations, lr):
-    """
-    Utility function running the Adam optimizer
-
-    :param model: GPflow model
-    :param interations: number of iterations
-    """
-    # Create an Adam Optimizer action
-    logf = []
-    train_iter = iter(train_dataset.batch(minibatch_size))
-    training_loss = model.training_loss_closure(train_iter, compile=True)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-
-    @tf.function
-    def optimization_step():
-        optimizer.minimize(training_loss, model.trainable_variables)
-
-    for step in range(iterations):
-        optimization_step()
-        if step % 10 == 0:
-            elbo = -training_loss().numpy()
-            logf.append(elbo)
-    return logf
