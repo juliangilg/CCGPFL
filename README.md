@@ -27,60 +27,15 @@ The experimental evaluation presented in the article includes fully synthetic, s
 | `ccgpfl_gpytorch.py` | Main implementation of the CCGPFL model in GPyTorch. It includes the custom likelihood, the sparse variational multi-output GP model, and the model builder. |
 | `utils.py` | Auxiliary functions for annotation simulation. |
 
----
-
-## Model overview
-
-Let \(K\) denote the number of classes and \(R\) the number of annotators. CCGPFL jointly models:
-
-1. the latent ground-truth class probabilities;
-2. the instance-dependent reliability of each annotator; and
-3. the dependencies among annotators through correlated latent Gaussian processes.
-
-The implementation relies on a sparse variational multi-output Gaussian process with a Linear Model of Coregionalization (LMC) strategy. The classification component is optimized using a focal-loss-based variational objective.
-
-The model also supports sparse annotation matrices. Missing labels can be represented using negative values and excluded from the expected log-likelihood during training.
-
----
 
 ## Datasets used in the article
 
 The experiments reported in the article cover three complementary evaluation settings:
 
-1. **Fully synthetic datasets**, in which the input features, ground-truth labels, annotator reliabilities, and observed annotations are generated synthetically.
-2. **Semi-synthetic datasets**, in which the input features and ground-truth labels are obtained from existing benchmark datasets, while the annotations from multiple labelers are simulated following the methodology described in the article.
-3. **Fully real datasets**, in which the input features and multi-annotator labels are obtained from real-world data sources.
+1.**Fully synthetic datasets**, in which the input features, ground-truth labels, annotator reliabilities, and observed annotations are generated synthetically. The complete experimental setup can be reproduced by running the notebook `DemoMA_MCClassification_CCGPFL.ipynb`.
+2. **Semi-synthetic datasets**, in which the input features and ground-truth labels are obtained from existing benchmark datasets, while the annotations from multiple labelers are simulated following the methodology described in the article. The datasets considered in this setting include **Iris, Occupancy, Segmentation, Skin, Tic-Tac-Toe, and Wine**, all of which are publicly available from the [UCI Machine Learning Repository](https://archive.ics.uci.edu). To make this repository easier to use and reproduce, the notebook `DemoMA_MCClassification_CCGPFL_GPyTorch_SemiSynthetic.ipynb` provides a complete example using the Iris dataset, including data loading, annotation simulation, model training, and performance evaluation. The notebook can also be adapted to any of the semi-synthetic datasets evaluated in the article by replacing the data-loading section and adjusting the corresponding preprocessing steps.
+3. **Fully real datasets**, in which both the input features and the annotations provided by multiple labelers are obtained from real-world data sources. The experiments reported in the article include the **Music** and **Voice** datasets. The **Music** dataset is publicly available and can be accessed through the following link: `https://fprodrigues.com/software/gpc-ma-gaussian-process-classification-with-multiple-annotators/`. In contrast, the **Voice** dataset is a private resource and cannot be publicly redistributed due to the corresponding data-use and privacy conditions.
 
-The benchmark and real-world datasets listed below are third-party resources. They were not collected, created, or owned by the authors of this repository. Please consult the original sources for their corresponding licenses, terms of use, and citation requirements.
-
-### Fully synthetic datasets
-
-| Dataset | Description | Source |
-| --- | --- | --- |
-| `[Insert synthetic experiment name]` | Fully synthetic multi-class dataset with simulated ground-truth labels and annotator-dependent responses. | Generated using the procedure described in the article. |
-| `[Insert additional synthetic experiment name]` | `[Insert a brief description of the experimental configuration.]` | Generated using the procedure described in the article. |
-
-### Semi-synthetic datasets
-
-| Dataset | Description | Original source |
-| --- | --- | --- |
-| `Iris` | Benchmark dataset used to demonstrate the semi-synthetic workflow. The input features and ground-truth labels are real, while the annotations from multiple labelers are simulated. | `[Insert Iris dataset URL]` |
-| `[Insert dataset name]` | The input features and ground-truth labels are obtained from the original dataset, while annotator responses are synthetically generated following the methodology described in the article. | `[Insert dataset URL]` |
-| `[Insert dataset name]` | `[Insert a brief description.]` | `[Insert dataset URL]` |
-
-### Fully real multi-annotator datasets
-
-| Dataset | Description | Original source |
-| --- | --- | --- |
-| `[Insert dataset name]` | Real-world dataset containing input features and annotations provided by multiple labelers. | `[Insert dataset URL]` |
-| `[Insert dataset name]` | `[Insert a brief description of the application domain and annotation structure.]` | `[Insert dataset URL]` |
-| `[Insert dataset name]` | `[Insert a brief description.]` | `[Insert dataset URL]` |
-
-### Data availability
-
-The repository does not redistribute third-party datasets unless their licenses explicitly allow redistribution. To reproduce the experiments, download each dataset from its original source and follow the corresponding preprocessing instructions described in the article or in the demonstration notebooks.
-
----
 
 ## General requirements
 
