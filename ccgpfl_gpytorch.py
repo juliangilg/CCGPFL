@@ -78,7 +78,7 @@ class MultiClassMA(Likelihood):
         target: Tensor,
         input: MultitaskMultivariateNormal,
     ) -> Tensor:
-        print("E_log_prob")
+       
 
         # One-hot representation for multi-labelers' annotations.
         Y = torch.transpose(torch.nn.functional.one_hot(target.long()), 1, 2)
@@ -163,7 +163,7 @@ class MultiClassMA(Likelihood):
             )
 
         function_samples = function_dist.rsample(sample_shape)
-        print(function_samples.shape)
+        
 
         return torch.nn.functional.softmax(function_samples, dim=2)
 
