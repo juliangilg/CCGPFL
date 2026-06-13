@@ -23,7 +23,7 @@ Experiments on synthetic, semi-synthetic, and fully real multi-annotator dataset
 | `DemoMA_MCClassification_CCGPFL.ipynb` | Synthetic demonstration of multi-class classification with multiple annotators using CCGPFL. |
 | `DemoMA_MCClassification_CCGPFL_GPyTorch_SemiSynthetic.ipynb` | Semi-synthetic demonstration using the Iris dataset from the UCI Machine Learning Repository. The input features and ground-truth labels are obtained from Iris, while the annotations from multiple labelers are simulated following the methodology described in the article. |
 | `ccgpfl_gpytorch.py` | Main implementation of the CCGPFL model in GPyTorch. It includes the custom likelihood, the sparse variational multi-output GP model, and the model builder. |
-| `utils.py` | Auxiliary functions for data processing, annotation simulation, baseline computation, and evaluation. |
+| `utils.py` | Auxiliary functions for annotation simulation. |
 
 ---
 
